@@ -71,10 +71,10 @@ flowchart TD
     C -->|não| D["registra o bloco como monitorado<br/>anota block.coinbase como ativo"]
     D --> E{"bloco atual ≥ nextSelectionBlock?"}
     E -->|não| Z
-    E -->|sim| F["identifica os inativos:<br/>operacionais, não protegidos,<br/>acima do limiar de inatividade"]
-    F --> G{"remover o lote inteiro mantém<br/>≥ MIN_OPERATIONAL_VALIDATORS?"}
+    E -->|sim| F["identifica os inativos:<br/>operacionais, protegidos inclusive,<br/>que atingiram o limiar de inatividade"]
+    F --> G{"operacionais − inativos<br/>≥ MIN_OPERATIONAL_VALIDATORS?"}
     G -->|não| H["nenhuma remoção"]
-    G -->|sim| I["remove o lote inteiro"]
+    G -->|sim| I["remove os inativos<br/>não protegidos"]
     H --> J["limpa os protegidos<br/>inicia novo ciclo"]
     I --> J
 ```
@@ -86,8 +86,9 @@ O algoritmo é controlado por dois parâmetros ajustáveis via `setSelectionPara
 
 Regras de execução do algoritmo:
 
-* **Remoção em lote (tudo-ou-nada):** O contrato calcula a lista completa de inativos e só executa a remoção se a sobra final mantiver ao menos `MIN_OPERATIONAL_VALIDATORS` operacionais; caso contrário, nenhum nó é removido ([DA-06](../doc/arquitetura/01-visao-geral.md#da-06)). Os casos E2E `05-piso-veta-lote` e `06-lote-removido-com-folga` ([`test/e2e/`](../test/e2e/README.md)) exercitam essa regra.
-* **Medição por ciclo:** O piso para o cálculo de inatividade é `cycleStartBlock`. A cada novo ciclo, o contador de blocos sem propor é reiniciado para todos os validadores.
+* **Remoção em lote (tudo-ou-nada):** O contrato calcula a lista completa de inativos e só executa a remoção se a sobra final mantiver ao menos `MIN_OPERATIONAL_VALIDATORS` operacionais; caso contrário, nenhum nó é removido ([DA-06](../doc/arquitetura/01-visao-geral.md#da-06)).
+* **Protegidos contam para o piso, mas não são removidos:** Um protegido que atingiu o limiar entra na lista de inativos usada no teste do piso. Se o lote for autorizado, ele é mantido e só os não protegidos saem. Assim, um protegido inativo pode vetar a remoção do lote inteiro, mesmo que a saída apenas dos não protegidos deixasse o conjunto acima do piso. Os casos E2E `05-piso-veta-lote` e `06-lote-removido-com-folga` ([`test/e2e/`](../test/e2e/README.md)) exercitam essa regra.
+* **Medição por ciclo:** O piso para o cálculo de inatividade é `cycleStartBlock`. Ao fim de cada seleção, `cycleStartBlock` passa a ser o bloco atual e `nextSelectionBlock` passa a ser o bloco atual mais `blocksBetweenSelection`, o que reinicia o contador de blocos sem propor para todos os validadores.
 
 ## 5. Pisos de Segurança
 

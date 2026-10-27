@@ -411,7 +411,7 @@ O contrato é inicializado em modo manual durante a implantação (ver US1-1), p
 
 ##### 3. Descrição
 
-3.1. O objetivo dessa história é acionar a lógica interna do *smart contract* para avaliar individualmente o desempenho dos nós na produção de blocos atuais e remover de forma automatizada aqueles que forem detectados como inoperantes.
+3.1. O objetivo dessa história é acionar a lógica interna do *smart contract* para avaliar o desempenho de cada nó na produção de blocos atuais e remover de forma automatizada, em lote, aqueles que forem detectados como inoperantes.
 
 ##### 4. Regras de Negócio
 
@@ -429,19 +429,18 @@ O contrato é inicializado em modo manual durante a implantação (ver US1-1), p
 
 4.6. No momento da seleção, o sistema deve avaliar individualmente cada validador operacional. Se um validador estiver há uma quantidade de blocos sem propor bloco maior ou igual ao limite estipulado em `blocksWithoutProposeThreshold`, ele deve ser pré-selecionado para remoção do consenso.
 
-4.7. Para cada validador pré-selecionado para remoção, o sistema deve verificar se ele está contido no conjunto de validadores protegidos:
-* Caso afirmativo: O validador é protegido e mantido no conjunto de validadores operacionais.
+4.7. A pré-seleção inclui os validadores protegidos. Um validador protegido pré-selecionado conta para a verificação da regra 4.8, mas nunca é removido: ele é mantido no conjunto de validadores operacionais.
 
-4.8. Caso o validador pré-selecionado não pertença ao conjunto de protegidos, a exclusão dependerá da quantidade mínima de segurança da rede:
-* Remoção Autorizada: Se ao menos 4 validadores operacionais permanecerem ativos na rede após a exclusão do nó avaliado, o sistema deve:
+4.8. A remoção é decidida para o conjunto de pré-selecionados de uma só vez (tudo ou nada), considerando a quantidade mínima de segurança da rede:
+* Remoção Autorizada: Se a quantidade de validadores operacionais menos a quantidade de pré-selecionados (protegidos incluídos) for de ao menos 4, o sistema deve, para cada pré-selecionado não protegido:
   - Emitir um evento indicando o validador operacional que está sendo removido.
   - Remover o validador do conjunto de validadores operacionais, mantendo-o apenas como validador elegível.
-* Remoção Vetada: Se a exclusão deixar a rede com menos de 4 validadores operacionais, o nó inoperante deve ser mantido como validador operacional para proteger o consenso.
+* Remoção Vetada: Caso contrário, nenhum validador é removido e todos os pré-selecionados são mantidos como validadores operacionais para proteger o consenso.
 
 4.9. Após processar as avaliações e remoções do período, o sistema deve obrigatoriamente resetar o estado realizando os seguintes passos:
 * Esvaziar completamente o conjunto de validadores protegidos.
-* Inicializar (zerar) as informações acumuladas de produção de blocos de todos os validadores.
-* Iniciar um novo ciclo de monitoração automática.
+* Inicializar (zerar) as informações acumuladas de produção de blocos de todos os validadores, tomando o bloco atual como novo início de ciclo (`cycleStartBlock`).
+* Iniciar um novo ciclo de monitoração automática, com a próxima seleção no bloco atual mais `blocksBetweenSelection` (`nextSelectionBlock`).
 * Emitir um evento final indicando a realização da seleção automática de validadores, informando detalhadamente a listagem de validadores operacionais resultante.
 
 ##### 5. Critérios de Aceite
@@ -450,8 +449,8 @@ O contrato é inicializado em modo manual durante a implantação (ver US1-1), p
 5.2. A execução deve emitir um evento registrando seu acionamento a cada chamada.  
 5.3. Quando a monitoração prosseguir após a validação de elegibilidade, o sistema deve registrar que o bloco atual foi processado para monitoração e contabilizar a produção do bloco para o respectivo validador.  
 5.4. A avaliação detalhada e seleção só ocorrerão se o bloco atual atingir o intervalo parametrizado em `blocksBetweenSelection`.  
-5.5. Nós operacionais que atingirem o limite sem propor blocos (`blocksWithoutProposeThreshold`) devem ser pré-selecionados para remoção, exceto se constarem no conjunto de "protegidos" (que possuem imunidade no ciclo corrente).  
-5.6. Caso ocorra a remoção de um nó (removendo-o do conjunto de validadores operacionais), o sistema deve validar se restam ao menos 4 nós operacionais ativos. Se restar menos que 4, a exclusão é vetada por segurança. Em caso de exclusão efetivada, um evento específico identificando o validador removido deve ser disparado.  
+5.5. Nós operacionais que atingirem o limite sem propor blocos (`blocksWithoutProposeThreshold`) devem ser pré-selecionados para remoção, inclusive os que constarem no conjunto de "protegidos". Os protegidos contam para a verificação do mínimo de 4 operacionais, mas possuem imunidade à remoção no ciclo corrente.  
+5.6. Antes de qualquer remoção, o sistema deve validar se a quantidade de operacionais menos a quantidade de pré-selecionados (protegidos incluídos) é de ao menos 4. Se for menor, nenhuma exclusão é feita no ciclo. Se for maior ou igual, todos os pré-selecionados não protegidos são removidos e, para cada exclusão, um evento específico identificando o validador removido deve ser disparado.  
 5.7. Ao fechar a avaliação do ciclo, o sistema deve executar as ações definidas em 4.9.
 
 ##### Referências Técnicas
